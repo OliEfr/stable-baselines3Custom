@@ -35,6 +35,7 @@ class Monitor(gym.Wrapper[ObsType, ActType, ObsType, ActType]):
         allow_early_resets: bool = True,
         reset_keywords: Tuple[str, ...] = (),
         info_keywords: Tuple[str, ...] = (),
+        additional_rewards_keywords: Tuple[str, ...] = (),
         override_existing: bool = True,
     ):
         super().__init__(env=env)
@@ -51,6 +52,7 @@ class Monitor(gym.Wrapper[ObsType, ActType, ObsType, ActType]):
 
         self.reset_keywords = reset_keywords
         self.info_keywords = info_keywords
+        self.additional_rewards_keywords = additional_rewards_keywords
         self.allow_early_resets = allow_early_resets
         self.rewards: List[float] = []
         self.needs_reset = True
@@ -60,6 +62,12 @@ class Monitor(gym.Wrapper[ObsType, ActType, ObsType, ActType]):
         self.total_steps = 0
         # extra info about the current episode, that was passed in during reset()
         self.current_reset_info: Dict[str, Any] = {}
+
+        # logging additional returns
+        self.additional_rewards= {}
+        for additional_rewards_keyword in self.additional_rewards_keywords:
+            self.additional_rewards[additional_rewards_keyword]: List[float] = []
+
 
     def reset(self, **kwargs) -> Tuple[ObsType, Dict[str, Any]]:
         """
@@ -74,6 +82,8 @@ class Monitor(gym.Wrapper[ObsType, ActType, ObsType, ActType]):
                 "wrap your env with Monitor(env, path, allow_early_resets=True)"
             )
         self.rewards = []
+        for additional_rewards_keyword in self.additional_rewards_keywords:
+            self.additional_rewards[additional_rewards_keyword]: List[float] = []
         self.needs_reset = False
         for key in self.reset_keywords:
             value = kwargs.get(key)
@@ -93,16 +103,22 @@ class Monitor(gym.Wrapper[ObsType, ActType, ObsType, ActType]):
             raise RuntimeError("Tried to step environment that needs reset")
         observation, reward, terminated, truncated, info = self.env.step(action)
         self.rewards.append(float(reward))
+        for additional_rewards_keyword in self.additional_rewards_keywords:
+            self.additional_rewards[additional_rewards_keyword].append(info[additional_rewards_keyword])
         if terminated or truncated:
             self.needs_reset = True
             ep_rew = sum(self.rewards)
             ep_len = len(self.rewards)
+            additional_ep_rews = {}
+            for additional_rewards_keyword in self.additional_rewards_keywords:
+                additional_ep_rews[additional_rewards_keyword] = round(sum(self.additional_rewards[additional_rewards_keyword]), 6)
             ep_info = {"r": round(ep_rew, 6), "l": ep_len, "t": round(time.time() - self.t_start, 6)}
             for key in self.info_keywords:
                 ep_info[key] = info[key]
             self.episode_returns.append(ep_rew)
             self.episode_lengths.append(ep_len)
             self.episode_times.append(time.time() - self.t_start)
+            ep_info.update(additional_ep_rews)
             ep_info.update(self.current_reset_info)
             if self.results_writer:
                 self.results_writer.write_row(ep_info)
