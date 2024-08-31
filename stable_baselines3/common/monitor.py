@@ -104,6 +104,9 @@ class Monitor(gym.Wrapper[ObsType, ActType, ObsType, ActType]):
         observation, reward, terminated, truncated, info = self.env.step(action)
         self.rewards.append(float(reward))
         for additional_rewards_keyword in self.additional_rewards_keywords:
+            if not additional_rewards_keyword in info:
+                # simply ignore missing key
+                continue
             self.additional_rewards[additional_rewards_keyword].append(info[additional_rewards_keyword])
         if terminated or truncated:
             self.needs_reset = True
@@ -111,6 +114,9 @@ class Monitor(gym.Wrapper[ObsType, ActType, ObsType, ActType]):
             ep_len = len(self.rewards)
             additional_ep_rews = {}
             for additional_rewards_keyword in self.additional_rewards_keywords:
+                if len(self.additional_rewards[additional_rewards_keyword]) == 0:
+                    # simply ignore keys without entries
+                    continue
                 additional_ep_rews[additional_rewards_keyword] = round(sum(self.additional_rewards[additional_rewards_keyword]), 6)
             ep_info = {"r": round(ep_rew, 6), "l": ep_len, "t": round(time.time() - self.t_start, 6)}
             for key in self.info_keywords:
