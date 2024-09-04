@@ -117,6 +117,10 @@ class Monitor(gym.Wrapper[ObsType, ActType, ObsType, ActType]):
                 if len(self.additional_rewards[additional_rewards_keyword]) == 0:
                     # simply ignore keys without entries
                     continue
+                # special treatment for success-flag
+                if additional_rewards_keyword == "reached_goal":
+                    additional_ep_rews[additional_rewards_keyword] = float(any(self.additional_rewards[additional_rewards_keyword]))
+                    continue
                 additional_ep_rews[additional_rewards_keyword] = round(sum(self.additional_rewards[additional_rewards_keyword]), 6)
             ep_info = {"r": round(ep_rew, 6), "l": ep_len, "t": round(time.time() - self.t_start, 6)}
             for key in self.info_keywords:
