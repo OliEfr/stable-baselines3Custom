@@ -7,6 +7,8 @@ from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, Vec
 from stable_baselines3.common.vec_env.dummy_vec_env import DummyVecEnv
 from stable_baselines3.common.vec_env.subproc_vec_env import SubprocVecEnv
 
+import numpy as np
+
 
 class VecVideoRecorder(VecEnvWrapper):
     """
@@ -62,6 +64,9 @@ class VecVideoRecorder(VecEnvWrapper):
 
         self.recording = False
         self.recorded_frames = 0
+        
+        self.obs_logger = []
+        self.obs_logger_save_path = ""
 
     def reset(self) -> VecEnvObs:
         obs = self.venv.reset()
@@ -70,9 +75,14 @@ class VecVideoRecorder(VecEnvWrapper):
 
     def start_video_recorder(self) -> None:
         self.close_video_recorder()
+        
+        self.obs_logger = []
 
         video_name = f"{self.name_prefix}-step-{self.step_id}-to-step-{self.step_id + self.video_length}"
         base_path = os.path.join(self.video_folder, video_name)
+        self.obs_logger_save_path = base_path
+        
+        
         self.video_recorder = video_recorder.VideoRecorder(
             env=self.env, base_path=base_path, metadata={"step_id": self.step_id}
         )
@@ -86,9 +96,11 @@ class VecVideoRecorder(VecEnvWrapper):
 
     def step_wait(self) -> VecEnvStepReturn:
         obs, rews, dones, infos = self.venv.step_wait()
-
+        
+       
         self.step_id += 1
         if self.recording:
+            self.obs_logger.append(obs)
             self.video_recorder.capture_frame()
             self.recorded_frames += 1
             if self.recorded_frames > self.video_length:
@@ -100,6 +112,10 @@ class VecVideoRecorder(VecEnvWrapper):
         return obs, rews, dones, infos
 
     def close_video_recorder(self) -> None:
+        self.obs_logger_save_path = self.obs_logger_save_path + ".npy"
+        np.save(self.obs_logger_save_path, np.array(self.obs_logger))
+        
+        self.obs_logger= []
         if self.recording:
             self.video_recorder.close()
         self.recording = False
